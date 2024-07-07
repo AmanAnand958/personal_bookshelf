@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import SearchBar from './SearchBar';
 import SearchResults from './SearchResults';
 import CardSlider from './CardSlider';
@@ -6,6 +6,7 @@ import './loader.css'
 
 const BookSearchPage = ({ books, setBooks, searched, setSearched, addToBookshelf }) => {
   const [loading, setLoading] = useState(false);
+  const currentPage = useRef(1);
 
   const searchBooks = async (query) => {
     if (query.length === 0) {
@@ -18,23 +19,37 @@ const BookSearchPage = ({ books, setBooks, searched, setSearched, addToBookshelf
     const data = await response.json();
     setBooks(data.docs);
     setLoading(false);
-    setSearched(true); // Set searched to true after search
+    setSearched(true);
+    currentPage.current = 1; // Reset the current page
   };
 
   useEffect(() => {
     const loadMoreBooks = async () => {
       if (loading || books.length === 0) return;
-      const currentPage = Math.floor(books.length / 10) + 1;
-      const response = await fetch(`https://openlibrary.org/search.json?q=${books.query}&limit=10&page=${currentPage + 1}`);
+      const nextPage = currentPage.current + 1;
+      const response = await fetch(`https://openlibrary.org/search.json?q=${books.query}&limit=10&page=${nextPage}`);
       const data = await response.json();
-      setBooks([...books, ...data.docs]);
+      setBooks((prevBooks) => [...prevBooks, ...data.docs]);
+      currentPage.current = nextPage;
     };
 
-    const handleScroll = () => {
-      if (window.innerHeight + document.documentElement.scrollTop >= document.documentElement.offsetHeight) {
+    const debounce = (func, wait) => {
+      let timeout;
+      return function executedFunction(...args) {
+        const later = () => {
+          clearTimeout(timeout);
+          func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+      };
+    };
+
+    const handleScroll = debounce(() => {
+      if (window.innerHeight + document.documentElement.scrollTop >= document.documentElement.offsetHeight - 100) {
         loadMoreBooks();
       }
-    };
+    }, 100);
 
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
